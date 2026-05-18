@@ -8,7 +8,7 @@ const News = sequelize.define('News', {
   resumo: { type: DataTypes.TEXT },
   conteudo: { type: DataTypes.TEXT, allowNull: false },
   imagem_url: { type: DataTypes.STRING },
-  categoria: { type: DataTypes.ENUM('geral', 'eventos', 'formacao', 'comunidade', 'vocacao'), defaultValue: 'geral' },
+  categoria: { type: DataTypes.ENUM('geral', 'eventos', 'academico', 'formacao', 'comunidade', 'vocacao'), defaultValue: 'geral' },
   publicado: { type: DataTypes.BOOLEAN, defaultValue: false },
   destaque: { type: DataTypes.BOOLEAN, defaultValue: false },
   autor_id: { type: DataTypes.UUID },
