@@ -29,6 +29,15 @@ ForumPost.belongsTo(User, { foreignKey: 'autor_id', as: 'autor' });
 ForumPost.hasMany(ForumPost, { foreignKey: 'parent_id', as: 'respostas' });
 ForumPost.belongsTo(ForumPost, { foreignKey: 'parent_id', as: 'parent' });
 
+User.hasMany(Comunicado, { foreignKey: 'autor_id', as: 'comunicados' });
+Comunicado.belongsTo(User, { foreignKey: 'autor_id', as: 'autor' });
+
+User.hasMany(Material, { foreignKey: 'enviado_por', as: 'materiais' });
+Material.belongsTo(User, { foreignKey: 'enviado_por', as: 'autor' });
+
+User.hasMany(AuditLog, { foreignKey: 'user_id', as: 'auditLogs' });
+AuditLog.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
 module.exports = {
   sequelize,
   User,

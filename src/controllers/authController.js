@@ -5,27 +5,32 @@ const { sendWelcome, sendPasswordReset } = require('../services/email');
 const logger = require('../utils/logger');
 
 async function login(req, res) {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ erro: 'Email e password são obrigatórios' });
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ erro: 'Email e password são obrigatórios' });
+    }
+
+    const user = await User.findOne({ where: { email: email.toLowerCase() } });
+    if (!user || !user.ativo) {
+      return res.status(401).json({ erro: 'Credenciais inválidas' });
+    }
+
+    const valid = await user.comparePassword(password);
+    if (!valid) {
+      logger.warn('Failed login attempt', { email, ip: req.ip });
+      return res.status(401).json({ erro: 'Credenciais inválidas' });
+    }
+
+    await user.update({ ultimo_login: new Date() });
+    const token = generateToken(user);
+    logger.info('User logged in', { userId: user.id, email: user.email });
+
+    res.json({ token, user: user.toPublic() });
+  } catch (err) {
+    logger.error('Login error', { err: err.message });
+    res.status(500).json({ erro: err.message });
   }
-
-  const user = await User.findOne({ where: { email: email.toLowerCase() } });
-  if (!user || !user.ativo) {
-    return res.status(401).json({ erro: 'Credenciais inválidas' });
-  }
-
-  const valid = await user.comparePassword(password);
-  if (!valid) {
-    logger.warn('Failed login attempt', { email, ip: req.ip });
-    return res.status(401).json({ erro: 'Credenciais inválidas' });
-  }
-
-  await user.update({ ultimo_login: new Date() });
-  const token = generateToken(user);
-  logger.info('User logged in', { userId: user.id, email: user.email });
-
-  res.json({ token, user: user.toPublic() });
 }
 
 async function register(req, res) {

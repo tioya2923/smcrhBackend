@@ -6,7 +6,7 @@ const Comunicado = sequelize.define('Comunicado', {
   titulo: { type: DataTypes.STRING(200), allowNull: false },
   conteudo: { type: DataTypes.TEXT, allowNull: false },
   autor_id: { type: DataTypes.UUID, allowNull: false },
-  destinatarios: { type: DataTypes.ENUM('todos', 'seminaristas', 'staff', 'admin'), defaultValue: 'todos' },
+  destinatarios: { type: DataTypes.ENUM('todos', 'seminarista', 'staff', 'admin'), defaultValue: 'todos' },
   enviado_email: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: 'comunicados' });
 

@@ -1,5 +1,10 @@
 require('dotenv').config();
 const express = require('express');
+
+process.on('unhandledRejection', (reason) => {
+  const logger = require('./utils/logger');
+  logger.error('Unhandled promise rejection', { err: reason?.message || String(reason) });
+});
 const helmet = require('helmet');
 const cors = require('cors');
 const compression = require('compression');

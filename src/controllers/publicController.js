@@ -3,53 +3,69 @@ const { News, Event } = require('../models');
 const { sendEmail } = require('../services/email');
 
 async function getNoticias(req, res) {
-  const { page = 1, categoria, destaque } = req.query;
-  const where = { publicado: true };
-  if (categoria) where.categoria = categoria;
-  if (destaque === 'true') where.destaque = true;
+  try {
+    const { page = 1, categoria, destaque } = req.query;
+    const where = { publicado: true };
+    if (categoria) where.categoria = categoria;
+    if (destaque === 'true') where.destaque = true;
 
-  const { count, rows } = await News.findAndCountAll({
-    where,
-    attributes: { exclude: ['conteudo'] },
-    order: [['data_publicacao', 'DESC']],
-    limit: 10,
-    offset: (page - 1) * 10,
-  });
-  res.json({ total: count, pagina: parseInt(page), noticias: rows });
+    const { count, rows } = await News.findAndCountAll({
+      where,
+      attributes: { exclude: ['conteudo'] },
+      order: [['data_publicacao', 'DESC']],
+      limit: 10,
+      offset: (page - 1) * 10,
+    });
+    res.json({ total: count, pagina: parseInt(page), noticias: rows });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
 }
 
 async function getNoticia(req, res) {
-  const noticia = await News.findOne({
-    where: { [Op.or]: [{ id: req.params.id }, { slug: req.params.id }], publicado: true },
-  });
-  if (!noticia) return res.status(404).json({ erro: 'Notícia não encontrada' });
-  res.json(noticia);
+  try {
+    const noticia = await News.findOne({
+      where: { [Op.or]: [{ id: req.params.id }, { slug: req.params.id }], publicado: true },
+    });
+    if (!noticia) return res.status(404).json({ erro: 'Notícia não encontrada' });
+    res.json(noticia);
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
 }
 
 async function getEventos(req, res) {
-  const eventos = await Event.findAll({
-    where: { publico: true, data_inicio: { [Op.gte]: new Date() } },
-    order: [['data_inicio', 'ASC']],
-    limit: 20,
-  });
-  res.json(eventos);
+  try {
+    const eventos = await Event.findAll({
+      where: { publico: true, data_inicio: { [Op.gte]: new Date() } },
+      order: [['data_inicio', 'ASC']],
+      limit: 20,
+    });
+    res.json(eventos);
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
 }
 
 async function submitContacto(req, res) {
-  const { nome, email, assunto, mensagem } = req.body;
-  if (!nome || !email || !mensagem) {
-    return res.status(400).json({ erro: 'Nome, email e mensagem são obrigatórios' });
+  try {
+    const { nome, email, assunto, mensagem } = req.body;
+    if (!nome || !email || !mensagem) {
+      return res.status(400).json({ erro: 'Nome, email e mensagem são obrigatórios' });
+    }
+
+    await sendEmail({
+      to: process.env.SMTP_USER || 'seminario@cristorei.ao',
+      subject: `[Contacto] ${assunto || 'Sem assunto'} - ${nome}`,
+      html: `<p><strong>De:</strong> ${nome} (${email})</p>
+             <p><strong>Assunto:</strong> ${assunto}</p>
+             <p><strong>Mensagem:</strong></p><p>${mensagem}</p>`,
+    }).catch(() => {});
+
+    res.json({ mensagem: 'Mensagem enviada. Responderemos brevemente.' });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
   }
-
-  await sendEmail({
-    to: process.env.SMTP_USER || 'seminario@cristorei.ao',
-    subject: `[Contacto] ${assunto || 'Sem assunto'} - ${nome}`,
-    html: `<p><strong>De:</strong> ${nome} (${email})</p>
-           <p><strong>Assunto:</strong> ${assunto}</p>
-           <p><strong>Mensagem:</strong></p><p>${mensagem}</p>`,
-  }).catch(() => {});
-
-  res.json({ mensagem: 'Mensagem enviada. Responderemos brevemente.' });
 }
 
 async function criarDonativo(req, res) {
