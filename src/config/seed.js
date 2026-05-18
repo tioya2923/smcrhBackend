@@ -52,7 +52,7 @@ async function seed() {
 
   // News
   const newsData = [
-    { titulo: 'Ordenação sacerdotal de novos presbíteros', categoria: 'eventos', destaque: true, resumo: 'Com grande alegria, o Seminário celebra...', conteudo: '<p>Com grande alegria, o Seminário Maior de Cristo Rei celebra a ordenação de três novos sacerdotes para a Diocese do Huambo.</p>' },
+    { titulo: 'Ordenação sacerdotal de novos presbíteros', categoria: 'eventos', destaque: true, resumo: 'Com grande alegria, o Seminário celebra...', conteudo: '<p>Com grande alegria, o Seminário Maior de Cristo Rei celebra a ordenação de três novos sacerdotes para a Arquidiocese do Huambo.</p>' },
     { titulo: 'Início do ano académico 2025/2026', categoria: 'academico', destaque: true, resumo: 'O novo ano lectivo começa com 45 seminaristas...', conteudo: '<p>Com grande entusiasmo, o Seminário abre as suas portas a um novo ano de formação integral.</p>' },
     { titulo: 'Visita pastoral do Sr. Bispo', categoria: 'comunidade', destaque: false, resumo: 'O Bispo presidiu à Eucaristia dominical...', conteudo: '<p>O Sr. Bispo visitou a comunidade seminarística e presidiu à celebração eucarística dominical.</p>' },
   ];
