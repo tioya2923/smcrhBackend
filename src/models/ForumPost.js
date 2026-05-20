@@ -9,6 +9,7 @@ const ForumPost = sequelize.define('ForumPost', {
   parent_id: { type: DataTypes.UUID },
   categoria: { type: DataTypes.STRING(100), defaultValue: 'geral' },
   fixado: { type: DataTypes.BOOLEAN, defaultValue: false },
+  seccao: { type: DataTypes.ENUM('teologia', 'filosofia'), allowNull: false },
 }, { tableName: 'forum_posts' });
 
 module.exports = ForumPost;

@@ -17,6 +17,7 @@ const User = sequelize.define('User', {
     defaultValue: 'seminarista',
     allowNull: false,
   },
+  seccao: { type: DataTypes.ENUM('teologia', 'filosofia'), allowNull: true },
   ativo: { type: DataTypes.BOOLEAN, defaultValue: true },
   totp_secret: { type: DataTypes.STRING },
   totp_enabled: { type: DataTypes.BOOLEAN, defaultValue: false },

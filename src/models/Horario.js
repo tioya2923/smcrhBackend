@@ -10,6 +10,7 @@ const Horario = sequelize.define('Horario', {
   disciplina: { type: DataTypes.STRING(150), allowNull: false },
   professor: { type: DataTypes.STRING(100) },
   sala: { type: DataTypes.STRING(50) },
+  seccao: { type: DataTypes.ENUM('teologia', 'filosofia'), allowNull: false },
 }, { tableName: 'horarios' });
 
 module.exports = Horario;

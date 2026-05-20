@@ -1,4 +1,4 @@
-const path = require('path');
+const { Op } = require('sequelize');
 const { User, Propina, Payment, Horario, Material, Comunicado, ForumPost } = require('../models');
 
 async function getPerfil(req, res) {
@@ -35,8 +35,11 @@ async function uploadFoto(req, res) {
 
 async function getHorarios(req, res) {
   try {
+    const where = { seccao: req.user.seccao };
+    if (req.user.ano_formacao) where.ano_formacao = req.user.ano_formacao;
+
     const horarios = await Horario.findAll({
-      where: { ano_formacao: req.user.ano_formacao },
+      where,
       order: [['dia_semana', 'ASC'], ['hora_inicio', 'ASC']],
     });
     res.json(horarios);
@@ -47,9 +50,18 @@ async function getHorarios(req, res) {
 
 async function getMateriais(req, res) {
   try {
-    const where = {};
-    if (req.user.permissoes === 'seminarista') {
-      where.ano_formacao = req.user.ano_formacao;
+    const where = {
+      [Op.or]: [
+        { seccao: req.user.seccao },
+        { seccao: null }, // materiais partilhados entre as duas secções
+      ],
+    };
+    if (req.user.permissoes === 'seminarista' && req.user.ano_formacao) {
+      where[Op.or] = [
+        { seccao: req.user.seccao, ano_formacao: req.user.ano_formacao },
+        { seccao: req.user.seccao, ano_formacao: null },
+        { seccao: null },
+      ];
     }
     const materiais = await Material.findAll({ where, order: [['created_at', 'DESC']] });
     res.json(materiais);
@@ -60,10 +72,10 @@ async function getMateriais(req, res) {
 
 async function getComunicados(req, res) {
   try {
-    const { Op } = require('sequelize');
     const comunicados = await Comunicado.findAll({
       where: {
         destinatarios: { [Op.in]: ['todos', req.user.permissoes] },
+        seccao: { [Op.in]: ['todas', req.user.seccao] },
       },
       include: [{ model: User, as: 'autor', attributes: ['nome'] }],
       order: [['created_at', 'DESC']],
@@ -78,7 +90,7 @@ async function getComunicados(req, res) {
 async function getForumPosts(req, res) {
   try {
     const { page = 1, categoria } = req.query;
-    const where = { parent_id: null };
+    const where = { parent_id: null, seccao: req.user.seccao };
     if (categoria) where.categoria = categoria;
 
     const { count, rows } = await ForumPost.findAndCountAll({
@@ -98,10 +110,12 @@ async function createForumPost(req, res) {
   try {
     const { titulo, conteudo, categoria, parent_id } = req.body;
     if (!conteudo) return res.status(400).json({ erro: 'Conteúdo obrigatório' });
+    if (!req.user.seccao) return res.status(400).json({ erro: 'Utilizador sem secção definida' });
 
     const post = await ForumPost.create({
       titulo, conteudo, categoria, parent_id,
       autor_id: req.user.id,
+      seccao: req.user.seccao,
     });
     res.status(201).json(post);
   } catch (err) {

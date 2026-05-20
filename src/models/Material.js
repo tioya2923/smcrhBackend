@@ -10,6 +10,7 @@ const Material = sequelize.define('Material', {
   ano_formacao: { type: DataTypes.INTEGER },
   enviado_por: { type: DataTypes.UUID },
   tamanho_bytes: { type: DataTypes.BIGINT },
+  seccao: { type: DataTypes.ENUM('teologia', 'filosofia'), allowNull: true },
 }, { tableName: 'materiais' });
 
 module.exports = Material;

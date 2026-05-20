@@ -3,17 +3,30 @@ const { User, Propina, Payment, Comunicado, Material, Horario } = require('../mo
 const { sendComunicado } = require('../services/email');
 const logger = require('../utils/logger');
 
+// Helpers
+function seccaoFilter(req) {
+  // Super-admins (seccao null) vêem tudo; admins de secção vêem apenas a sua
+  return req.user.seccao ? { seccao: req.user.seccao } : {};
+}
+
 async function listSeminaristas(req, res) {
   try {
-    const { page = 1, search, ano } = req.query;
-    const where = { permissoes: 'seminarista' };
+    const { page = 1, search, ano, seccao } = req.query;
+    const where = { permissoes: { [Op.in]: ['seminarista', 'staff'] } };
     if (search) where.nome = { [Op.iLike]: `%${search}%` };
     if (ano) where.ano_formacao = ano;
+
+    // Section restriction: admin de secção só vê a sua; super-admin pode filtrar
+    if (req.user.seccao) {
+      where.seccao = req.user.seccao;
+    } else if (seccao) {
+      where.seccao = seccao;
+    }
 
     const { count, rows } = await User.findAndCountAll({
       where,
       include: [{ model: Propina, as: 'propina' }],
-      order: [['nome', 'ASC']],
+      order: [['seccao', 'ASC'], ['nome', 'ASC']],
       limit: 25,
       offset: (page - 1) * 25,
     });
@@ -31,6 +44,10 @@ async function getSeminarista(req, res) {
       ],
     });
     if (!user) return res.status(404).json({ erro: 'Utilizador não encontrado' });
+    // Admin de secção não pode ver utilizadores de outra secção
+    if (req.user.seccao && user.seccao !== req.user.seccao) {
+      return res.status(403).json({ erro: 'Acesso não autorizado' });
+    }
     res.json(user.toPublic());
   } catch (err) {
     res.status(500).json({ erro: err.message });
@@ -39,13 +56,23 @@ async function getSeminarista(req, res) {
 
 async function createSeminarista(req, res) {
   try {
-    const { nome, email, password, ano_formacao, nif, permissoes } = req.body;
+    const { nome, email, password, ano_formacao, nif, permissoes, seccao } = req.body;
     if (!nome || !email || !password) return res.status(400).json({ erro: 'Dados obrigatórios em falta' });
+    if (!seccao) return res.status(400).json({ erro: 'Secção obrigatória' });
+
+    // Admin de secção só pode criar utilizadores na sua secção
+    const seccaoFinal = req.user.seccao || seccao;
+    if (req.user.seccao && seccao && req.user.seccao !== seccao) {
+      return res.status(403).json({ erro: 'Não pode criar utilizadores nessa secção' });
+    }
 
     const exists = await User.findOne({ where: { email: email.toLowerCase() } });
     if (exists) return res.status(409).json({ erro: 'Email já registado' });
 
-    const user = await User.create({ nome, email: email.toLowerCase(), password_hash: password, ano_formacao, permissoes: permissoes || 'seminarista' });
+    const user = await User.create({
+      nome, email: email.toLowerCase(), password_hash: password,
+      ano_formacao, permissoes: permissoes || 'seminarista', seccao: seccaoFinal,
+    });
     if (nif) { user.setNif(nif); await user.save(); }
 
     const { sendWelcome } = require('../services/email');
@@ -60,6 +87,9 @@ async function updateSeminarista(req, res) {
   try {
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ erro: 'Utilizador não encontrado' });
+    if (req.user.seccao && user.seccao !== req.user.seccao) {
+      return res.status(403).json({ erro: 'Acesso não autorizado' });
+    }
     const { nome, ano_formacao, ativo, permissoes } = req.body;
     await user.update({ nome, ano_formacao, ativo, permissoes });
     res.json(user.toPublic());
@@ -96,13 +126,19 @@ async function configurarPropina(req, res) {
 
 async function enviarComunicado(req, res) {
   try {
-    const { titulo, conteudo, destinatarios } = req.body;
+    const { titulo, conteudo, destinatarios, seccao } = req.body;
     if (!titulo || !conteudo) return res.status(400).json({ erro: 'Título e conteúdo obrigatórios' });
 
+    const seccaoComunicado = req.user.seccao || seccao || 'todas';
+
     const where = destinatarios === 'todos' ? {} : { permissoes: destinatarios };
+    if (seccaoComunicado !== 'todas') where.seccao = seccaoComunicado;
+
     const users = await User.findAll({ where: { ...where, ativo: true }, attributes: ['email'] });
 
-    const comunicado = await Comunicado.create({ titulo, conteudo, destinatarios, autor_id: req.user.id });
+    const comunicado = await Comunicado.create({
+      titulo, conteudo, destinatarios, seccao: seccaoComunicado, autor_id: req.user.id,
+    });
 
     const emails = users.map(u => u.email);
     await sendComunicado(emails, titulo, conteudo).catch(() => {});
@@ -117,12 +153,21 @@ async function enviarComunicado(req, res) {
 async function relatorioArrecadacao(req, res) {
   try {
     const { sequelize } = require('../models');
-    const rows = await sequelize.query(
-      `SELECT DATE_TRUNC('month', data_pagamento) AS mes, SUM(valor) AS total, COUNT(*) AS num_pagamentos
-       FROM payments WHERE confirmado = true
-       GROUP BY mes ORDER BY mes DESC LIMIT 12`,
-      { type: sequelize.QueryTypes.SELECT }
-    );
+    let query = `SELECT DATE_TRUNC('month', p.data_pagamento) AS mes, SUM(p.valor) AS total, COUNT(*) AS num_pagamentos
+                 FROM payments p`;
+
+    // Juntar users para filtrar por secção
+    if (req.user.seccao) {
+      query += ` JOIN users u ON p.user_id = u.id WHERE p.confirmado = true AND u.seccao = :seccao`;
+    } else {
+      query += ` WHERE p.confirmado = true`;
+    }
+    query += ` GROUP BY mes ORDER BY mes DESC LIMIT 12`;
+
+    const rows = await sequelize.query(query, {
+      replacements: { seccao: req.user.seccao },
+      type: sequelize.QueryTypes.SELECT,
+    });
     res.json(rows);
   } catch (err) {
     res.status(500).json({ erro: err.message });
@@ -131,9 +176,10 @@ async function relatorioArrecadacao(req, res) {
 
 async function relatorioDevedores(req, res) {
   try {
+    const userWhere = req.user.seccao ? { seccao: req.user.seccao } : {};
     const devedores = await Propina.findAll({
       where: { saldo_devedor: { [Op.gt]: 0 } },
-      include: [{ model: User, as: 'user', attributes: ['id', 'nome', 'email', 'ano_formacao'] }],
+      include: [{ model: User, as: 'user', attributes: ['id', 'nome', 'email', 'ano_formacao', 'seccao'], where: userWhere }],
       order: [['saldo_devedor', 'DESC']],
     });
     res.json(devedores);
@@ -144,16 +190,20 @@ async function relatorioDevedores(req, res) {
 
 async function getPagamentos(req, res) {
   try {
-    const { page = 1, desde, ate } = req.query;
+    const { page = 1, desde, ate, seccao } = req.query;
     const where = { confirmado: true };
     if (desde || ate) {
       where.data_pagamento = {};
       if (desde) where.data_pagamento[Op.gte] = new Date(desde);
       if (ate) where.data_pagamento[Op.lte] = new Date(ate);
     }
+    const userWhere = {};
+    if (req.user.seccao) userWhere.seccao = req.user.seccao;
+    else if (seccao) userWhere.seccao = seccao;
+
     const { count, rows } = await Payment.findAndCountAll({
       where,
-      include: [{ model: User, as: 'user', attributes: ['nome', 'email'] }],
+      include: [{ model: User, as: 'user', attributes: ['nome', 'email', 'seccao'], where: userWhere }],
       order: [['data_pagamento', 'DESC']],
       limit: 30,
       offset: (page - 1) * 30,
@@ -167,10 +217,12 @@ async function getPagamentos(req, res) {
 async function uploadMaterial(req, res) {
   try {
     if (!req.file) return res.status(400).json({ erro: 'Nenhum ficheiro enviado' });
-    const { titulo, descricao, tipo, ano_formacao } = req.body;
+    const { titulo, descricao, tipo, ano_formacao, seccao } = req.body;
+    const seccaoMaterial = req.user.seccao || seccao || null;
     const material = await Material.create({
       titulo, descricao, tipo: tipo || 'documento',
       ano_formacao: ano_formacao ? parseInt(ano_formacao) : null,
+      seccao: seccaoMaterial,
       ficheiro_url: `/uploads/${req.file.filename}`,
       enviado_por: req.user.id,
       tamanho_bytes: req.file.size,
@@ -183,12 +235,44 @@ async function uploadMaterial(req, res) {
 
 async function getStats(req, res) {
   try {
-    const [totalSeminaristas, totalPago, totalDevedor] = await Promise.all([
-      User.count({ where: { permissoes: 'seminarista', ativo: true } }),
-      Payment.sum('valor', { where: { confirmado: true } }),
-      Propina.sum('saldo_devedor'),
-    ]);
-    res.json({ total_seminaristas: totalSeminaristas, total_pago: totalPago || 0, total_devedor: totalDevedor || 0 });
+    const baseWhere = { permissoes: 'seminarista', ativo: true };
+
+    if (req.user.seccao) {
+      // Admin de secção: apenas stats da sua secção
+      const [totalSeminaristas, totalPago, totalDevedor] = await Promise.all([
+        User.count({ where: { ...baseWhere, seccao: req.user.seccao } }),
+        Payment.sum('valor', {
+          where: { confirmado: true },
+          include: [{ model: User, as: 'user', where: { seccao: req.user.seccao }, attributes: [] }],
+        }),
+        Propina.sum('saldo_devedor', {
+          include: [{ model: User, as: 'user', where: { seccao: req.user.seccao }, attributes: [] }],
+        }),
+      ]);
+      res.json({
+        total_seminaristas: totalSeminaristas,
+        total_pago: totalPago || 0,
+        total_devedor: totalDevedor || 0,
+        seccao: req.user.seccao,
+      });
+    } else {
+      // Super-admin: stats globais + por secção
+      const [totalGlobal, teoCount, filCount, totalPago, totalDevedor] = await Promise.all([
+        User.count({ where: baseWhere }),
+        User.count({ where: { ...baseWhere, seccao: 'teologia' } }),
+        User.count({ where: { ...baseWhere, seccao: 'filosofia' } }),
+        Payment.sum('valor', { where: { confirmado: true } }),
+        Propina.sum('saldo_devedor'),
+      ]);
+      res.json({
+        total_seminaristas: totalGlobal,
+        seminaristas_teologia: teoCount,
+        seminaristas_filosofia: filCount,
+        total_pago: totalPago || 0,
+        total_devedor: totalDevedor || 0,
+        seccao: null,
+      });
+    }
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
