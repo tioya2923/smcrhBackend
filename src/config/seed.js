@@ -164,8 +164,8 @@ async function seed() {
   await Event.create({ titulo: 'Festa de Cristo Rei (ambas as Secções)', descricao: 'Celebração solene do Padroeiro com toda a comunidade seminarística', data_inicio: new Date(2026, 10, 22), tipo: 'liturgico', publico: true, criado_por: superAdmin.id });
   await Event.create({ titulo: 'Exames da Secção de Teologia – 1.º Semestre', descricao: 'Período de avaliações académicas da Secção de Teologia', data_inicio: new Date(2026, 0, 15), data_fim: new Date(2026, 0, 31), tipo: 'academico', publico: false, criado_por: reitorTeo.id });
   await Event.create({ titulo: 'Exames da Secção de Filosofia – 1.º Semestre', descricao: 'Período de avaliações académicas da Secção de Filosofia', data_inicio: new Date(2026, 0, 18), data_fim: new Date(2026, 0, 28), tipo: 'academico', publico: false, criado_por: reitorFil.id });
-  await Event.create({ titulo: 'Retiro Espiritual da Secção de Teologia', descricao: 'Retiro anual de espiritualidade para os teólogos', data_inicio: new Date(2026, 2, 10), data_fim: new Date(2026, 2, 13), tipo: 'espiritual', publico: false, criado_por: staffTeo1.id });
-  await Event.create({ titulo: 'Retiro Espiritual da Secção de Filosofia', descricao: 'Retiro anual de espiritualidade para os filósofos', data_inicio: new Date(2026, 2, 17), data_fim: new Date(2026, 2, 20), tipo: 'espiritual', publico: false, criado_por: staffFil1.id });
+  await Event.create({ titulo: 'Retiro Espiritual da Secção de Teologia', descricao: 'Retiro anual de espiritualidade para os teólogos', data_inicio: new Date(2026, 2, 10), data_fim: new Date(2026, 2, 13), tipo: 'formacao', publico: false, criado_por: staffTeo1.id });
+  await Event.create({ titulo: 'Retiro Espiritual da Secção de Filosofia', descricao: 'Retiro anual de espiritualidade para os filósofos', data_inicio: new Date(2026, 2, 17), data_fim: new Date(2026, 2, 20), tipo: 'formacao', publico: false, criado_por: staffFil1.id });
 
   // ── Horários da Secção de Teologia (anos 1–4) ───────────────────────────────
   const disciplinasTeo = [
