@@ -1,9 +1,17 @@
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
+
+const UPLOAD_PATH = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.join(__dirname, '..', '..', 'uploads');
+
+// Garante que a pasta existe ao arrancar
+if (!fs.existsSync(UPLOAD_PATH)) fs.mkdirSync(UPLOAD_PATH, { recursive: true });
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, process.env.UPLOAD_DIR || 'uploads'),
+  destination: (req, file, cb) => cb(null, UPLOAD_PATH),
   filename: (req, file, cb) => {
     const unique = crypto.randomBytes(12).toString('hex');
     cb(null, `${unique}${path.extname(file.originalname)}`);

@@ -19,6 +19,7 @@ const authRoutes = require('./routes/auth');
 const semináristaRoutes = require('./routes/seminarista');
 const propinaRoutes = require('./routes/propinas');
 const adminRoutes = require('./routes/admin');
+const professorRoutes = require('./routes/professor');
 const publicRoutes = require('./routes/public');
 
 const app = express();
@@ -85,6 +86,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/seminarista', semináristaRoutes);
 app.use('/api/propinas', propinaRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/professor', professorRoutes);
 app.use('/api', publicRoutes);
 
 // Health check

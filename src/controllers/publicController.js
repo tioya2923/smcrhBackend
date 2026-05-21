@@ -24,9 +24,13 @@ async function getNoticias(req, res) {
 
 async function getNoticia(req, res) {
   try {
-    const noticia = await News.findOne({
-      where: { [Op.or]: [{ id: req.params.id }, { slug: req.params.id }], publicado: true },
-    });
+    const { id } = req.params;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const where = isUUID
+      ? { [Op.or]: [{ id }, { slug: id }], publicado: true }
+      : { slug: id, publicado: true };
+
+    const noticia = await News.findOne({ where });
     if (!noticia) return res.status(404).json({ erro: 'Notícia não encontrada' });
     res.json(noticia);
   } catch (err) {

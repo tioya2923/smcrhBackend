@@ -1,5 +1,5 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
-const { sequelize, User, Propina, News, Event, Horario, Comunicado, Material, ForumPost } = require('../models');
+const { sequelize, User, Propina, News, Event, Horario, Comunicado, Material, ForumPost, PageContent, TeamMember } = require('../models');
 
 async function seed() {
   await sequelize.authenticate();
@@ -266,6 +266,71 @@ async function seed() {
     categoria: 'geral',
     fixado: true,
   });
+
+  // ── Equipa Formadora (TeamMember) ─────────────────────────────────────────
+  const equipaTeo = [
+    { nome: 'Pe. António Lúcio Ferreira', cargo: 'Reitor', area: 'Direcção', seccao: 'teologia', ordem: 1 },
+    { nome: 'Pe. João Paulo Mendes', cargo: 'Vice-Reitor e Prefeito de Disciplina', area: 'Direcção', seccao: 'teologia', ordem: 2 },
+    { nome: 'Pe. Manuel Costa Silva', cargo: 'Director Espiritual', area: 'Espiritual', seccao: 'teologia', ordem: 3 },
+  ];
+  const equipaFil = [
+    { nome: 'Pe. Carlos Eduardo Neto', cargo: 'Reitor', area: 'Direcção', seccao: 'filosofia', ordem: 1 },
+    { nome: 'Pe. Filipe Augusto Lopes', cargo: 'Vice-Reitor e Prefeito de Disciplina', area: 'Direcção', seccao: 'filosofia', ordem: 2 },
+    { nome: 'Irmã Maria da Graça', cargo: 'Directora Espiritual', area: 'Espiritual', seccao: 'filosofia', ordem: 3 },
+  ];
+  for (const m of [...equipaTeo, ...equipaFil]) await TeamMember.create(m);
+
+  // ── Conteúdo das páginas (PageContent) ────────────────────────────────────
+  const conteudos = [
+    // Contactos
+    { pagina: 'contactos', chave: 'morada', valor: 'Av. da República, s/n\nHuambo, Angola', tipo: 'text' },
+    { pagina: 'contactos', chave: 'telefone', valor: '+244 222 000 000', tipo: 'text' },
+    { pagina: 'contactos', chave: 'email', valor: 'info@cristorei.ao', tipo: 'text' },
+    { pagina: 'contactos', chave: 'horario', valor: 'Seg–Sex: 08:00–16:00\nSáb: 08:00–12:00', tipo: 'text' },
+
+    // Como Ajudar
+    { pagina: 'ajudar', chave: 'hero_subtitulo', valor: 'A sua generosidade transforma vidas e forma sacerdotes ao serviço de Angola.', tipo: 'text' },
+    { pagina: 'ajudar', chave: 'apadrinhamento_descricao', valor: 'Ao apadrinhar um seminarista, contribui mensalmente para cobrir os custos da sua formação (propinas, material escolar, alimentação, alojamento).', tipo: 'text' },
+    { pagina: 'ajudar', chave: 'apadrinhamento_beneficios', valor: JSON.stringify(['Recebe cartas e actualizações do seminarista que apoia', 'Participação na missa de ordenação', 'Oração especial do seminarista por si', 'Contribuição a partir de 50.000 Kz/mês']), tipo: 'json' },
+    { pagina: 'ajudar', chave: 'email_apadrinhamento', valor: 'info@cristorei.ao', tipo: 'text' },
+    { pagina: 'ajudar', chave: 'email_oracao', valor: 'oracao@cristorei.ao', tipo: 'text' },
+    { pagina: 'ajudar', chave: 'oracao_texto', valor: 'Envie o seu pedido de oração e os nossos seminaristas orarão por si durante a Missa e a oração comunitária.', tipo: 'text' },
+
+    // Mensagens dos Reitores (Seminário)
+    { pagina: 'seminario', chave: 'reitor_teologia_nome', valor: 'Pe. António Lúcio Ferreira', tipo: 'text' },
+    { pagina: 'seminario', chave: 'reitor_teologia_cargo', valor: 'Reitor da Secção de Teologia', tipo: 'text' },
+    { pagina: 'seminario', chave: 'reitor_teologia_citacao', valor: '"A Teologia é a ciência da fé. Aqui formamos homens que pensam com a Igreja e servem o povo de Deus com profundidade intelectual e ardor apostólico."', tipo: 'text' },
+    { pagina: 'seminario', chave: 'reitor_teologia_descricao', valor: 'A Secção de Teologia acolhe os seminaristas que, após concluírem os estudos filosóficos, avançam para a formação teológica específica que os prepara para o presbiterado. O percurso académico dura quatro anos e culmina com a ordenação diaconal e sacerdotal.', tipo: 'text' },
+    { pagina: 'seminario', chave: 'reitor_filosofia_nome', valor: 'Pe. Carlos Eduardo Neto', tipo: 'text' },
+    { pagina: 'seminario', chave: 'reitor_filosofia_cargo', valor: 'Reitor da Secção de Filosofia', tipo: 'text' },
+    { pagina: 'seminario', chave: 'reitor_filosofia_citacao', valor: '"A Filosofia forma homens que interrogam, que pensam, que buscam a verdade. É o alicerce indispensável sobre o qual se edificará toda a formação teológica."', tipo: 'text' },
+    { pagina: 'seminario', chave: 'reitor_filosofia_descricao', valor: 'A Secção de Filosofia é o primeiro grau da formação seminarística no Seminário Maior. Os candidatos ao sacerdócio iniciam aqui o seu percurso, adquirindo os fundamentos filosóficos, humanísticos e espirituais necessários para os estudos teológicos subsequentes. O curso tem a duração de três anos.', tipo: 'text' },
+
+    // Deus Chama-me? (Vocação)
+    { pagina: 'vocacao', chave: 'hero_subtitulo', valor: 'Se sentes um chamamento interior para servir a Deus como sacerdote, esta página é para ti. Descobre mais sobre a vocação sacerdotal e como discernir.', tipo: 'text' },
+    { pagina: 'vocacao', chave: 'testemunhos', valor: JSON.stringify([
+      { nome: 'Pe. Carlos Neto', ano: 'Ordenado em 2018', texto: '"Entrei no seminário com muitas dúvidas, mas a comunidade e a oração ajudaram-me a perceber que era mesmo este o meu caminho."' },
+      { nome: 'Pe. Manuel Silva', ano: 'Ordenado em 2020', texto: '"Os sete anos de formação moldaram-me como homem e como sacerdote. Aprendi a escutar Deus no silêncio e nos outros."' },
+      { nome: 'Pe. João Paulo Dias', ano: 'Ordenado em 2022', texto: '"O Seminário de Cristo Rei é uma escola de humanidade. Formação não é apenas estudo — é transformação interior."' },
+    ]), tipo: 'json' },
+    { pagina: 'vocacao', chave: 'faqs', valor: JSON.stringify([
+      { q: 'Como sei se tenho vocação sacerdotal?', a: 'A vocação manifesta-se através de um desejo persistente de servir a Deus e à Igreja, amor pela Eucaristia e pelos sacramentos, e o desejo de acompanhar espiritualmente as pessoas. Fala com o teu pároco ou um sacerdote de confiança.' },
+      { q: 'Que requisitos são necessários para entrar no Seminário?', a: 'É necessário ser do sexo masculino, católico praticante, ter concluído o ensino secundário, ter boa saúde física e psicológica, e apresentar carta de recomendação do pároco.' },
+      { q: 'Quantos anos dura a formação?', a: 'A formação no Seminário Maior dura 7 anos: Filosofia (3 anos) e Teologia (4 anos), culminando com a ordenação diaconal e presbiteral.' },
+      { q: 'Posso visitar o Seminário antes de me candidatar?', a: 'Sim! Organizamos fins-de-semana vocacionais e dias abertos. Entre em contacto connosco para agendar uma visita.' },
+      { q: 'Como se faz a candidatura?', a: 'A candidatura é feita através do formulário disponível na diocese ou directamente no Seminário, entre Junho e Agosto de cada ano.' },
+    ]), tipo: 'json' },
+
+    // Comunidade
+    { pagina: 'comunidade', chave: 'vida_comunitaria', valor: JSON.stringify([
+      { titulo: 'Oração Comum', desc: 'Começamos cada dia com a Liturgia das Horas e a Santa Missa, o centro da vida do Seminário.' },
+      { titulo: 'Estudo e Formação', desc: 'Aulas de Filosofia e Teologia, seminários de investigação e leitura espiritual estruturam o dia académico.' },
+      { titulo: 'Convívio Fraterno', desc: 'Refeições partilhadas, actividades desportivas e culturais constroem laços de fraternidade duradouros.' },
+      { titulo: 'Serviço Pastoral', desc: 'Aos fins-de-semana, os seminaristas participam na pastoral das paróquias da Arquidiocese do Huambo.' },
+    ]), tipo: 'json' },
+    { pagina: 'comunidade', chave: 'associacoes', valor: JSON.stringify(['Amigos do Seminário', 'Associação Alumni', 'Benefactores da Diocese']), tipo: 'json' },
+  ];
+  for (const c of conteudos) await PageContent.create(c);
 
   console.log('\n✓ Base de dados inicializada com sucesso\n');
   console.log('  ── Administração Global ──────────────────────────────');

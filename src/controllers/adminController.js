@@ -9,10 +9,25 @@ function seccaoFilter(req) {
   return req.user.seccao ? { seccao: req.user.seccao } : {};
 }
 
+// Maps cargo UI type → permissoes access level
+const CARGO_PERMISSOES = {
+  seminarista: 'seminarista',
+  professor: 'staff',
+  funcionario: 'staff',
+  direccao: 'admin',
+  administrador: 'admin',
+};
+
 async function listSeminaristas(req, res) {
   try {
     const { page = 1, search, ano, seccao } = req.query;
-    const where = { permissoes: { [Op.in]: ['seminarista', 'staff'] } };
+    // Show everyone except the super-admin (admin with seccao null)
+    const where = {
+      [Op.or]: [
+        { permissoes: { [Op.in]: ['seminarista', 'staff'] } },
+        { permissoes: 'admin', seccao: { [Op.ne]: null } },
+      ],
+    };
     if (search) where.nome = { [Op.iLike]: `%${search}%` };
     if (ano) where.ano_formacao = ano;
 
@@ -23,12 +38,13 @@ async function listSeminaristas(req, res) {
       where.seccao = seccao;
     }
 
+    const limit = Math.min(parseInt(req.query.limit) || 25, 500);
     const { count, rows } = await User.findAndCountAll({
       where,
       include: [{ model: Propina, as: 'propina' }],
-      order: [['seccao', 'ASC'], ['nome', 'ASC']],
-      limit: 25,
-      offset: (page - 1) * 25,
+      order: [['cargo', 'ASC'], ['seccao', 'ASC'], ['nome', 'ASC']],
+      limit,
+      offset: (page - 1) * limit,
     });
     res.json({ total: count, pagina: parseInt(page), seminaristas: rows.map(u => u.toPublic()) });
   } catch (err) {
@@ -56,9 +72,10 @@ async function getSeminarista(req, res) {
 
 async function createSeminarista(req, res) {
   try {
-    const { nome, email, password, ano_formacao, nif, permissoes, seccao } = req.body;
+    const { nome, email, password, ano_formacao, nif, cargo, seccao } = req.body;
     if (!nome || !email || !password) return res.status(400).json({ erro: 'Dados obrigatórios em falta' });
     if (!seccao) return res.status(400).json({ erro: 'Secção obrigatória' });
+    if (!cargo) return res.status(400).json({ erro: 'Tipo obrigatório' });
 
     // Admin de secção só pode criar utilizadores na sua secção
     const seccaoFinal = req.user.seccao || seccao;
@@ -69,9 +86,11 @@ async function createSeminarista(req, res) {
     const exists = await User.findOne({ where: { email: email.toLowerCase() } });
     if (exists) return res.status(409).json({ erro: 'Email já registado' });
 
+    const permissoes = CARGO_PERMISSOES[cargo] || 'seminarista';
     const user = await User.create({
       nome, email: email.toLowerCase(), password_hash: password,
-      ano_formacao, permissoes: permissoes || 'seminarista', seccao: seccaoFinal,
+      ano_formacao: cargo === 'seminarista' ? ano_formacao : null,
+      permissoes, cargo, seccao: seccaoFinal,
     });
     if (nif) { user.setNif(nif); await user.save(); }
 
@@ -90,9 +109,40 @@ async function updateSeminarista(req, res) {
     if (req.user.seccao && user.seccao !== req.user.seccao) {
       return res.status(403).json({ erro: 'Acesso não autorizado' });
     }
-    const { nome, ano_formacao, ativo, permissoes } = req.body;
-    await user.update({ nome, ano_formacao, ativo, permissoes });
+    const { nome, email, ano_formacao, ativo, cargo, seccao, password } = req.body;
+    const updates = { nome, ativo };
+    if (email) updates.email = email.toLowerCase();
+    // Only super-admin (seccao null) can change section
+    if (seccao && !req.user.seccao) updates.seccao = seccao;
+    if (cargo) {
+      updates.cargo = cargo;
+      updates.permissoes = CARGO_PERMISSOES[cargo] || user.permissoes;
+      updates.ano_formacao = cargo === 'seminarista' ? (ano_formacao || user.ano_formacao) : null;
+    } else if (ano_formacao !== undefined) {
+      updates.ano_formacao = ano_formacao;
+    }
+    if (password && password.length >= 8) updates.password_hash = password;
+    await user.update(updates);
     res.json(user.toPublic());
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+}
+
+async function deleteSeminarista(req, res) {
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ erro: 'Utilizador não encontrado' });
+    // Prevent deleting the super-admin account itself
+    if (!user.seccao && user.permissoes === 'admin') {
+      return res.status(403).json({ erro: 'Não é possível eliminar o administrador global' });
+    }
+    // Section admins can only delete users of their section
+    if (req.user.seccao && user.seccao !== req.user.seccao) {
+      return res.status(403).json({ erro: 'Acesso não autorizado' });
+    }
+    await user.destroy();
+    res.json({ mensagem: 'Utilizador eliminado' });
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
@@ -235,51 +285,66 @@ async function uploadMaterial(req, res) {
 
 async function getStats(req, res) {
   try {
-    const baseWhere = { permissoes: 'seminarista', ativo: true };
+    const sf = req.user.seccao ? { seccao: req.user.seccao } : {};
 
-    if (req.user.seccao) {
-      // Admin de secção: apenas stats da sua secção
-      const [totalSeminaristas, totalPago, totalDevedor] = await Promise.all([
-        User.count({ where: { ...baseWhere, seccao: req.user.seccao } }),
-        Payment.sum('valor', {
-          where: { confirmado: true },
-          include: [{ model: User, as: 'user', where: { seccao: req.user.seccao }, attributes: [] }],
-        }),
-        Propina.sum('saldo_devedor', {
-          include: [{ model: User, as: 'user', where: { seccao: req.user.seccao }, attributes: [] }],
-        }),
-      ]);
-      res.json({
-        total_seminaristas: totalSeminaristas,
-        total_pago: totalPago || 0,
-        total_devedor: totalDevedor || 0,
-        seccao: req.user.seccao,
-      });
-    } else {
-      // Super-admin: stats globais + por secção
-      const [totalGlobal, teoCount, filCount, totalPago, totalDevedor] = await Promise.all([
-        User.count({ where: baseWhere }),
-        User.count({ where: { ...baseWhere, seccao: 'teologia' } }),
-        User.count({ where: { ...baseWhere, seccao: 'filosofia' } }),
-        Payment.sum('valor', { where: { confirmado: true } }),
-        Propina.sum('saldo_devedor'),
-      ]);
-      res.json({
-        total_seminaristas: totalGlobal,
-        seminaristas_teologia: teoCount,
-        seminaristas_filosofia: filCount,
-        total_pago: totalPago || 0,
-        total_devedor: totalDevedor || 0,
-        seccao: null,
-      });
-    }
+    // Helper: count users by cargo, falling back to permissoes for legacy rows without cargo
+    const countCargo = (cargo, permissoesFallback, extraWhere = {}) => User.count({
+      where: {
+        ativo: true,
+        ...sf,
+        ...extraWhere,
+        [Op.or]: [
+          { cargo },
+          ...(permissoesFallback ? [{ cargo: null, permissoes: permissoesFallback }] : []),
+        ],
+      },
+    });
+
+    const [
+      totalSeminaristas,
+      totalProfessores,
+      totalFuncionarios,
+      totalDireccao,
+      totalAdministradores,
+      teoCount,
+      filCount,
+      totalPago,
+      totalDevedor,
+    ] = await Promise.all([
+      countCargo('seminarista', 'seminarista'),
+      countCargo('professor', null),
+      countCargo('funcionario', 'staff'),
+      countCargo('direccao', null),
+      countCargo('administrador', null, { seccao: { [Op.ne]: null } }),
+      req.user.seccao ? 0 : User.count({ where: { ativo: true, [Op.or]: [{ cargo: 'seminarista' }, { cargo: null, permissoes: 'seminarista' }], seccao: 'teologia' } }),
+      req.user.seccao ? 0 : User.count({ where: { ativo: true, [Op.or]: [{ cargo: 'seminarista' }, { cargo: null, permissoes: 'seminarista' }], seccao: 'filosofia' } }),
+      req.user.seccao
+        ? Payment.sum('valor', { where: { confirmado: true }, include: [{ model: User, as: 'user', where: { seccao: req.user.seccao }, attributes: [] }] })
+        : Payment.sum('valor', { where: { confirmado: true } }),
+      req.user.seccao
+        ? Propina.sum('saldo_devedor', { include: [{ model: User, as: 'user', where: { seccao: req.user.seccao }, attributes: [] }] })
+        : Propina.sum('saldo_devedor'),
+    ]);
+
+    res.json({
+      total_seminaristas: totalSeminaristas,
+      total_professores: totalProfessores,
+      total_funcionarios: totalFuncionarios,
+      total_direccao: totalDireccao,
+      total_administradores: totalAdministradores,
+      seminaristas_teologia: teoCount,
+      seminaristas_filosofia: filCount,
+      total_pago: totalPago || 0,
+      total_devedor: totalDevedor || 0,
+      seccao: req.user.seccao || null,
+    });
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
 }
 
 module.exports = {
-  listSeminaristas, getSeminarista, createSeminarista, updateSeminarista,
+  listSeminaristas, getSeminarista, createSeminarista, updateSeminarista, deleteSeminarista,
   aplicarBolsa, configurarPropina, enviarComunicado,
   relatorioArrecadacao, relatorioDevedores, getPagamentos,
   uploadMaterial, getStats,
