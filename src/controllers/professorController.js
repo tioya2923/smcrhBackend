@@ -165,7 +165,7 @@ async function uploadMaterialProf(req, res) {
       titulo: titulo || req.file.originalname,
       descricao,
       tipo: tipo || 'outro',
-      ficheiro_url: `/uploads/${req.file.filename}`,
+      ficheiro_url: req.file.path,
       seccao: req.user.seccao,
       ano_formacao: ano_formacao ? parseInt(ano_formacao) : null,
       enviado_por: req.user.id,

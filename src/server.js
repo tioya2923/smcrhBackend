@@ -25,10 +25,8 @@ const publicRoutes = require('./routes/public');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Ensure logs/uploads directories exist
-['logs', process.env.UPLOAD_DIR || 'uploads'].forEach(dir => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-});
+// Ensure logs directory exists
+if (!fs.existsSync('logs')) fs.mkdirSync('logs', { recursive: true });
 
 // Security headers
 app.use(helmet({
@@ -77,9 +75,6 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }));
 }
-
-// Static uploads
-app.use('/uploads', express.static(path.join(__dirname, '..', process.env.UPLOAD_DIR || 'uploads')));
 
 // API Routes
 app.use('/api/auth', authRoutes);

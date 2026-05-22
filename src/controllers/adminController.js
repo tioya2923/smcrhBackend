@@ -273,7 +273,7 @@ async function uploadMaterial(req, res) {
       titulo, descricao, tipo: tipo || 'documento',
       ano_formacao: ano_formacao ? parseInt(ano_formacao) : null,
       seccao: seccaoMaterial,
-      ficheiro_url: `/uploads/${req.file.filename}`,
+      ficheiro_url: req.file.path,
       enviado_por: req.user.id,
       tamanho_bytes: req.file.size,
     });

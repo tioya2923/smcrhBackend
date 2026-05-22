@@ -25,7 +25,7 @@ async function updatePerfil(req, res) {
 async function uploadFoto(req, res) {
   try {
     if (!req.file) return res.status(400).json({ erro: 'Nenhum ficheiro enviado' });
-    const url = `/uploads/${req.file.filename}`;
+    const url = req.file.path;
     await req.user.update({ foto_url: url });
     res.json({ foto_url: url });
   } catch (err) {
